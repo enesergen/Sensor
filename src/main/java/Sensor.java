@@ -1,6 +1,6 @@
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import org.apache.commons.lang3.SerializationUtils;
+
+import java.io.*;
 import java.lang.annotation.Target;
 import java.math.RoundingMode;
 import java.net.ServerSocket;
@@ -8,7 +8,8 @@ import java.net.Socket;
 import java.text.DecimalFormat;
 import java.util.concurrent.Semaphore;
 
-public class Sensor {
+public class Sensor implements Serializable {
+
     private String sensorName;
     private double x;
     private double y;
@@ -19,8 +20,8 @@ public class Sensor {
     private Semaphore semaphore1;
     private Semaphore semaphore2;
 
-    public Sensor(String sensorName,double x, double y, double xVelocity, double yVelocity) {
-        this.sensorName=sensorName;
+    public Sensor(String sensorName, double x, double y, double xVelocity, double yVelocity) {
+        this.sensorName = sensorName;
         this.x = x;
         this.y = y;
         this.xVelocity = xVelocity;
@@ -32,7 +33,7 @@ public class Sensor {
 
 
     public void createServer(int port) {
-            try (ServerSocket server = new ServerSocket(port)) {
+        try (ServerSocket server = new ServerSocket(port)) {
             server.setReuseAddress(true);
             while (true) {
                 Socket target = server.accept();
@@ -60,87 +61,25 @@ public class Sensor {
 
         @Override
         public void run() {
-            try (
-                    ObjectInputStream ois = new ObjectInputStream(target.getInputStream());
-                    ObjectOutputStream oos = new ObjectOutputStream(target.getOutputStream())
-            ) {
-                while (true) {
-                    Target receivedData=(Target)ois.readObject();
-                    System.out.println(receivedData.toString());
-                    oos.writeObject(sensor.sensorName+":data received.");
+
+                try (
+                        ObjectInputStream ois = new ObjectInputStream(target.getInputStream());
+                        ObjectOutputStream oos = new ObjectOutputStream(target.getOutputStream())
+                ) {
+                    while (true){
+                        String data=(String)ois.readObject();
+                        oos.writeObject("Data alındı");
+                        System.out.println(data);
+                    }
+
+                } catch (IOException | ClassNotFoundException e) {
+                    System.out.println("Target connection is broken");
                 }
-            } catch (IOException | ClassNotFoundException e) {
-                System.out.println("Target connection is broken");
-            }
+
+
         }
     }
 
-    class Target {
-        private String targetName;
-        private double x;
-        private double y;
-        private double xVelocity;
-        private double yVelocity;
-
-        public Target(String targetName, double x, double y, double xVelocity, double yVelocity) {
-            this.targetName = targetName;
-            this.x = x;
-            this.y = y;
-            this.xVelocity = xVelocity;
-            this.yVelocity = yVelocity;
-        }
-
-        @Override
-        public String toString() {
-            return "Target{" +
-                    "targetName='" + targetName + '\'' +
-                    ", x=" + x +
-                    ", y=" + y +
-                    ", xVelocity=" + xVelocity +
-                    ", yVelocity=" + yVelocity +
-                    '}';
-        }
-
-        public String getTargetName() {
-            return targetName;
-        }
-
-        public void setTargetName(String targetName) {
-            this.targetName = targetName;
-        }
-
-        public double getX() {
-            return x;
-        }
-
-        public void setX(double x) {
-            this.x = x;
-        }
-
-        public double getY() {
-            return y;
-        }
-
-        public void setY(double y) {
-            this.y = y;
-        }
-
-        public double getxVelocity() {
-            return xVelocity;
-        }
-
-        public void setxVelocity(double xVelocity) {
-            this.xVelocity = xVelocity;
-        }
-
-        public double getyVelocity() {
-            return yVelocity;
-        }
-
-        public void setyVelocity(double yVelocity) {
-            this.yVelocity = yVelocity;
-        }
-    }
 
     public double getX() {
         return x;
@@ -199,7 +138,7 @@ public class Sensor {
     }
 
     public static void main(String[] args) {
-        Sensor sensor=new Sensor("Sensor-1",200,300,0,0);
+        Sensor sensor = new Sensor("Sensor-1", 200, 300, 0, 0);
         sensor.createServer(8080);
 
     }
