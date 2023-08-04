@@ -1,0 +1,12 @@
+<?xml version = "1.0"?>
+<Sensor>
+    <sensorName>Target-1</sensorName>
+    <x>-500</x>
+    <y>500</y>
+    <xVelocity>0.3</xVelocity>
+    <yVelocity>0.2</yVelocity>
+    <address>localhost</address>
+    <sensorServerPort>8080</sensorServerPort>
+    <processServerAddress>127.0.0.1</processServerAddress>
+    <processServerPort>8080</processServerPort>
+</Sensor>
