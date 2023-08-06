@@ -1,4 +1,3 @@
-import org.apache.commons.lang3.SerializationUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -15,7 +14,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.text.DecimalFormat;
 
-public class Sensor implements Serializable {
+public class Sensor {
 
     private String sensorName;
     private double x;
@@ -27,6 +26,7 @@ public class Sensor implements Serializable {
     private static int processServerPort;
     private static String processServerAddress;
 
+    //it will be used to send process unit with sync functions
     private String message;
 
     public synchronized String getMessage() {
@@ -44,9 +44,10 @@ public class Sensor implements Serializable {
         this.xVelocity = xVelocity;
         this.yVelocity = yVelocity;
         decimalFormat.setRoundingMode(RoundingMode.UP);
-        message = "";
+        message = null;
     }
 
+    //receives from target data
     public void createServer(int port) {
         try (ServerSocket server = new ServerSocket(port)) {
             server.setReuseAddress(true);
@@ -64,56 +65,13 @@ public class Sensor implements Serializable {
         }
     }
 
+    //send to process server sensor and target data
     private void sendProcessServer(String address, int portNumber) {
+        boolean isConnected = false;
         Socket socket = null;
         ObjectOutputStream oos = null;
         ObjectInputStream ois = null;
-        boolean isConnected = provideFirstConnection(address, portNumber, socket, oos, ois);
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        while (true) {
 
-            if (isConnected) {
-                try {
-                    assert oos != null;
-                    oos.writeObject(getMessage());
-                    oos.flush();
-                    String msg = (String) ois.readObject();
-                    System.out.println("Process Server Response:" + msg);
-                } catch (IOException | ClassNotFoundException e) {
-                    throw new RuntimeException(e);
-                }
-
-            } else {
-                try {
-                    socket = new Socket(address, portNumber);
-                    oos = new ObjectOutputStream(socket.getOutputStream());
-                    ois = new ObjectInputStream(socket.getInputStream());
-                    isConnected = true;
-                    Thread.sleep(400);
-                } catch (IOException | InterruptedException e) {
-                    isConnected = false;
-                    System.out.println("Connection failed. It will try to provide connection");
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                }
-
-            }
-        }
-    }
-
-    public String sensorToString() {
-        return sensorName + "," + x + "," + y + "," + xVelocity + "," + yVelocity + ",";
-    }
-
-    public boolean provideFirstConnection(String address, int portNumber, Socket socket, ObjectOutputStream oos, ObjectInputStream ois) {
-        boolean isConnected = false;
         while (!isConnected) {
             try {
                 socket = new Socket(address, portNumber);
@@ -130,9 +88,43 @@ public class Sensor implements Serializable {
                 }
             }
         }
-        return isConnected;
+        while (true) {
+            try {
+                if (isConnected) {
+                    if (message != null) {
+                        oos.writeObject(message);
+                        oos.flush();
+                    } else {
+                        oos.writeObject("");
+                        oos.flush();
+                    }
+                    String msg = (String) ois.readObject();
+                    System.out.println(msg);
+                    Thread.sleep(300);
+                } else {
+                    socket = new Socket(address, portNumber);
+                    oos = new ObjectOutputStream(socket.getOutputStream());
+                    ois = new ObjectInputStream(socket.getInputStream());
+                    isConnected = true;
+                }
+            } catch (IOException | ClassNotFoundException | InterruptedException e) {
+                isConnected = false;
+                System.out.println("Connection failed. It will try to provide connection");
+                try {
+                    Thread.sleep(3000);// it will try to connect at 3 second intervals
+                } catch (InterruptedException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+
+        }
     }
 
+    public String sensorToString() {
+        return sensorName + "," + x + "," + y + "," + xVelocity + "," + yVelocity + ",";
+    }
+
+    //it will be produced thread each target connection
     private static class TargetHandler implements Runnable {
         Socket target;
         Sensor sensor;
@@ -180,15 +172,17 @@ public class Sensor implements Serializable {
                 System.out.println("Update Func " + "X:" + x + " Y:" + y);
             }
             try {
-                Thread.sleep(1000);
+                Thread.sleep(1000);//the update interval of data is one second
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    public double formatAndRoundNumber(double number) {
-        return Double.parseDouble(decimalFormat.format(number));
+    public Double formatAndRoundNumber(double number) {
+        String formattedNumber = decimalFormat.format(number);
+        formattedNumber = formattedNumber.replace(',', '.');
+        return Double.parseDouble(formattedNumber);
     }
 
     public static Sensor readObjectFromXML(String xmlPath) {
@@ -264,7 +258,7 @@ public class Sensor implements Serializable {
     }
 
     public static void main(String[] args) {
-        Sensor sensor = readObjectFromXML("C:\\Users\\stj.eergen\\Desktop\\Sensor\\src\\main\\resources\\sensor1.xml");
+        Sensor sensor = readObjectFromXML("src/main/resources/sensor1.xml");
         Thread t1 = new Thread(sensor::updateCoordinates);
         t1.start();
         new Thread(() -> {
